@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int          @id @default(autoincrement())
+  nickname     String
+  email        String?      @unique
+  wechatOpenid String?      @unique @map("wechat_openid")
+  avatar       String?
+  createdAt    DateTime     @default(now()) @map("created_at")
+  voteQuota    VoteQuota?
+  voteRecords  VoteRecord[]
+  sessions     Session[]
+  comments     Comment[]
+
+  @@map("users")
+}
+
+model Session {
+  token     String   @id
+  userId    Int      @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VoteQuota {
+  userId     Int      @id @map("user_id")
+  totalLimit Int      @default(5) @map("total_limit")
+  usedCount  Int      @default(0) @map("used_count")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("vote_quota")
+}
+
+model Tournament {
+  id     Int     @id @default(autoincrement())
+  name   String
+  status String  @default("active")
+  rounds Round[]
+
+  @@map("tournaments")
+}
+
+model Round {
+  id           Int        @id @default(autoincrement())
+  tournamentId Int        @map("tournament_id")
+  roundNumber  Int        @map("round_number")
+  name         String
+  status       String     @default("active")
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+  matchups     Matchup[]
+
+  @@map("rounds")
+}
+
+model Character {
+  id           Int                  @id @default(autoincrement())
+  slug         String               @unique
+  name         String
+  anime        String
+  groupName    String               @map("group_name")
+  description  String
+  emoji        String               @default("🌸")
+  imageUrl     String?              @map("image_url")
+  /** JSON: [{ caption, emoji, tint }] 本地图集占位 */
+  galleryJson  String               @default("[]") @map("gallery_json")
+  color        String               @default("#FB7299")
+  participants MatchupParticipant[]
+  voteStats    VoteStat[]
+  voteRecords  VoteRecord[]
+  comments     Comment[]
+
+  @@map("characters")
+}
+
+model Comment {
+  id          Int       @id @default(autoincrement())
+  characterId Int       @map("character_id")
+  userId      Int       @map("user_id")
+  content     String
+  createdAt   DateTime  @default(now()) @map("created_at")
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([characterId, createdAt])
+  @@map("comments")
+}
+
+/** 对阵组：duel=2人对决，group=自由 n 选 m 小组赛 */
+model Matchup {
+  id           Int                  @id @default(autoincrement())
+  roundId      Int                  @map("round_id")
+  groupLabel   String               @map("group_label")
+  /** duel | group */
+  mode         String               @default("duel")
+  /** 每位用户在本组最多可投几个不同角色（决斗赛通常为 1） */
+  voteLimit    Int                  @default(1) @map("vote_limit")
+  status       String               @default("active")
+  startAt      DateTime?            @map("start_at")
+  endAt        DateTime?            @map("end_at")
+  round        Round                @relation(fields: [roundId], references: [id])
+  participants MatchupParticipant[]
+  voteStats    VoteStat[]
+  voteRecords  VoteRecord[]
+
+  @@map("matchups")
+}
+
+model MatchupParticipant {
+  matchupId   Int       @map("matchup_id")
+  characterId Int       @map("character_id")
+  sortOrder   Int       @default(0) @map("sort_order")
+  matchup     Matchup   @relation(fields: [matchupId], references: [id], onDelete: Cascade)
+  character   Character @relation(fields: [characterId], references: [id])
+
+  @@id([matchupId, characterId])
+  @@map("matchup_participants")
+}
+
+model VoteStat {
+  matchupId   Int       @map("matchup_id")
+  characterId Int       @map("character_id")
+  voteCount   Int       @default(0) @map("vote_count")
+  matchup     Matchup   @relation(fields: [matchupId], references: [id], onDelete: Cascade)
+  character   Character @relation(fields: [characterId], references: [id])
+
+  @@id([matchupId, characterId])
+  @@map("vote_stats")
+}
+
+model VoteRecord {
+  id          Int       @id @default(autoincrement())
+  userId      Int       @map("user_id")
+  matchupId   Int       @map("matchup_id")
+  characterId Int       @map("character_id")
+  votes       Int       @default(1)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  user        User      @relation(fields: [userId], references: [id])
+  matchup     Matchup   @relation(fields: [matchupId], references: [id])
+  character   Character @relation(fields: [characterId], references: [id])
+
+  /** 同一用户可在同一对阵组投给不同角色（最多 voteLimit 个） */
+  @@unique([userId, matchupId, characterId])
+  @@index([userId, matchupId])
+  @@map("vote_records")
+}
