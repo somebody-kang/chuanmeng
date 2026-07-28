@@ -1,20 +1,19 @@
 import { execSync } from "node:child_process";
-import { copyFileSync, existsSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { ensureLocalEnv } from "./ensure-env.mjs";
 
 const root = process.cwd();
 const dbPath = join(root, "prisma", "dev.db");
-const envPath = join(root, ".env");
-const envExample = join(root, ".env.example");
 
 if (!process.env.PRISMA_ENGINES_MIRROR) {
   process.env.PRISMA_ENGINES_MIRROR = "https://npmmirror.com/mirrors/prisma";
 }
-
-if (!existsSync(envPath) && existsSync(envExample)) {
-  copyFileSync(envExample, envPath);
-  console.log("[setup] 已从 .env.example 创建本地 .env");
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = "file:./dev.db";
 }
+
+ensureLocalEnv();
 
 if (!existsSync(dbPath)) {
   console.log("[setup] 首次运行：正在初始化数据库...");

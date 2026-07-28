@@ -27,19 +27,16 @@ for /f "tokens=*" %%v in ('node -v 2^>nul') do set "NODE_VER=%%v"
 echo [信息] Node.js %NODE_VER%
 echo.
 
-REM 本地配置：仓库不含 .env，首次从示例复制
-if not exist ".env" (
-  if exist ".env.example" (
-    echo [0/3] 首次运行：从 .env.example 生成本地配置...
-    copy /Y ".env.example" ".env" >nul
-    if errorlevel 1 (
-      echo [错误] 无法创建 .env
-      goto :error
-    )
-  ) else (
-    echo [警告] 未找到 .env.example，请自行创建 .env
-  )
+REM 生成本地 .env（仓库不包含该文件；不含微信真实凭证）
+echo [0/3] 检查本地环境配置...
+call node scripts/ensure-env.mjs
+if errorlevel 1 (
+  echo [错误] 无法创建本地 .env
+  goto :error
 )
+
+REM 给 Prisma CLI 兜底，避免偶发未加载 dotenv
+if not defined DATABASE_URL set "DATABASE_URL=file:./dev.db"
 
 REM 加速依赖与 Prisma 引擎下载（国内网络）
 if not defined NPM_CONFIG_REGISTRY (
@@ -78,14 +75,17 @@ echo [2/3] 准备 Prisma Client 与数据库...
 call npx --yes prisma generate
 if errorlevel 1 (
   echo [错误] prisma generate 失败（多为引擎下载超时）。
-  echo 请确认已设置 PRISMA_ENGINES_MIRROR 后重试。
+  echo 请确认网络后重试，或检查 PRISMA_ENGINES_MIRROR。
   goto :error
 )
 
 if not exist "prisma\dev.db" (
   echo       首次初始化数据库...
   call npx --yes prisma db push
-  if errorlevel 1 goto :error
+  if errorlevel 1 (
+    echo [错误] 数据库初始化失败。请确认已生成 .env 且含 DATABASE_URL。
+    goto :error
+  )
   call npx --yes tsx prisma/seed.ts
   if errorlevel 1 goto :error
   echo       数据库初始化完成。
