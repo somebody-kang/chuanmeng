@@ -27,7 +27,7 @@ npm run dev
 
 浏览器打开 http://localhost:3000  
 
-Windows 也可双击 `start.bat`。
+Windows 也可双击 `start.bat`。首次 `npm install` 可能需几分钟；项目默认使用国内 npm / Prisma 镜像（见 `.npmrc`）。
 
 本地默认 `ALLOW_DEV_LOGIN=true`：访问 `/login` 用昵称即可模拟登录。  
 管理后台：访问 `/admin`，账号配置见 `.env.example` 中的 `ADMIN_*`。
